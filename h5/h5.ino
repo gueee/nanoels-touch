@@ -24,6 +24,9 @@ const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
+// Set ACTIVE_X to false for minimal hardware setup without X-axis motor.
+// This disables FACE, CONE, CUT, ELLIPSE, and GCODE modes and makes threading/turning wait for button press between passes.
+const bool ACTIVE_X = true; // Whether the X axis is connected and should be controlled
 const long SCREW_X_DU = 40000; // 4mm lead screw pitch in deci-microns (10^-7 of a meter)
 const long MOTOR_STEPS_X = 800;
 const long SPEED_START_X = MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
@@ -630,6 +633,7 @@ bool buttonRightPressed = false;
 bool buttonUpPressed = false;
 bool buttonDownPressed = false;
 bool buttonOffPressed = false;
+bool buttonOnPressed = false;
 bool buttonBackPressed = false;
 bool buttonForwardPressed = false;
 
@@ -1620,7 +1624,8 @@ void updateDisplay() {
       }
     } else if (isPassMode()) {
       bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
-      bool missingStops = missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN;
+      bool missingXStops = ACTIVE_X && (x.leftStop == LONG_MAX || x.rightStop == LONG_MIN);
+      bool missingStops = missingZStops || missingXStops;
       if (!inNumpad && missingStops) {
         result = needZStops() ? "Set all stops" : "Set X stops";
       } else if (numpadResult != 0 && setupIndex == 1) {
@@ -2671,7 +2676,8 @@ void buttonPlusMinusPress(bool plus) {
 void buttonOnOffPress(bool on) {
   resetMillis = millis();
   bool missingZStops = needZStops() && (z.leftStop == LONG_MAX || z.rightStop == LONG_MIN);
-  if (on && isPassMode() && (missingZStops || x.leftStop == LONG_MAX || x.rightStop == LONG_MIN)) {
+  bool missingXStops = ACTIVE_X && (x.leftStop == LONG_MAX || x.rightStop == LONG_MIN);
+  if (on && isPassMode() && (missingZStops || missingXStops)) {
     beep();
   } else if (!isOn && on && mode == MODE_GCODE && gcodeProgramIndex >= gcodeProgramCount && setupIndex == 1) {
     beep();
@@ -3146,6 +3152,9 @@ void processKeypadEvent() {
     buttonForwardPressed = isPress;
   } else if (keyCode == B_BACK) {
     buttonBackPressed = isPress;
+  } else if (keyCode == B_ON && isPress) {
+    // Set flag for manual pass continuation when X-axis is disabled
+    buttonOnPressed = true;
   }
 
   // For all other keys we have no "release" logic.
@@ -3175,9 +3184,9 @@ void processKeypadEvent() {
   } else if (keyCode == B_MODE_Y && ACTIVE_Y) {
     setModeFromTask(MODE_Y);
   } else if (keyCode == B_MODE_ELLIPSE) {
-    setModeFromTask(MODE_ELLIPSE);
+    if (ACTIVE_X) setModeFromTask(MODE_ELLIPSE);
   } else if (keyCode == B_MODE_GCODE) {
-    setModeFromTask(MODE_GCODE);
+    if (ACTIVE_X) setModeFromTask(MODE_GCODE);
   } else if (keyCode == B_MODE_ASYNC) {
     setModeFromTask(MODE_ASYNC);
   } else if (keyCode == B_MULTISTART) {
@@ -3211,21 +3220,21 @@ void processKeypadEvent() {
     setModeFromTask(MODE_TURN);
   } else if (keyCode == B_MODE) {
     if (mode == MODE_NORMAL) setModeFromTask(MODE_TURN);
-    else if (mode == MODE_TURN) setModeFromTask(MODE_FACE);
-    else if (mode == MODE_FACE) setModeFromTask(MODE_CONE);
-    else if (mode == MODE_CONE) setModeFromTask(MODE_CUT);
+    else if (mode == MODE_TURN) setModeFromTask(ACTIVE_X ? MODE_FACE : MODE_THREAD);
+    else if (mode == MODE_FACE) setModeFromTask(ACTIVE_X ? MODE_CONE : MODE_THREAD);
+    else if (mode == MODE_CONE) setModeFromTask(ACTIVE_X ? MODE_CUT : MODE_THREAD);
     else if (mode == MODE_CUT) setModeFromTask(MODE_THREAD);
-    else if (mode == MODE_THREAD) setModeFromTask(MODE_ELLIPSE);
-    else if (mode == MODE_ELLIPSE) setModeFromTask(MODE_GCODE);
+    else if (mode == MODE_THREAD) setModeFromTask(ACTIVE_X ? MODE_ELLIPSE : MODE_ASYNC);
+    else if (mode == MODE_ELLIPSE) setModeFromTask(ACTIVE_X ? MODE_GCODE : MODE_ASYNC);
     else if (mode == MODE_GCODE) setModeFromTask(MODE_ASYNC);
     else if (mode == MODE_ASYNC) setModeFromTask(y.active ? MODE_Y : MODE_NORMAL);
     else if (mode == MODE_Y) setModeFromTask(MODE_NORMAL);
   } else if (keyCode == B_MODE_FACE) {
-    setModeFromTask(MODE_FACE);
+    if (ACTIVE_X) setModeFromTask(MODE_FACE);
   } else if (keyCode == B_MODE_CONE) {
-    setModeFromTask(MODE_CONE);
+    if (ACTIVE_X) setModeFromTask(MODE_CONE);
   } else if (keyCode == B_MODE_CUT) {
-    setModeFromTask(MODE_CUT);
+    if (ACTIVE_X) setModeFromTask(MODE_CUT);
   } else if (keyCode == B_MODE_THREAD) {
     setModeFromTask(MODE_THREAD);
   }
@@ -3375,22 +3384,48 @@ void modeTurn(Axis* main, Axis* aux) {
     }
     // Retracting the tool
     if (opSubIndex == 3) {
-      long auxPos = auxStartStop + auxSafeDistance;
-      stepToFinal(aux, auxPos);
-      if (aux->pos == auxPos) {
+      if (!ACTIVE_X) {
+        // Skip tool retraction when X-axis is disabled
         opSubIndex = 4;
+      } else {
+        long auxPos = auxStartStop + auxSafeDistance;
+        stepToFinal(aux, auxPos);
+        if (aux->pos == auxPos) {
+          opSubIndex = 4;
+        }
       }
     }
     // Returning to start of main.
     if (opSubIndex == 4) {
-      main->speedMax = main->speedManualMove;
-      // Overstep by 1 so that "main" backlash is taken out before "opSubIndex == 2".
-      long mainPos = mainStartStop + (opDuprSign > 0 ? -1 : 1);
-      stepToFinal(main, mainPos);
-      if (main->pos == mainPos) {
-        stepToFinal(main, mainStartStop);
-        opSubIndex = 0;
-        opIndex++;
+      if (!ACTIVE_X) {
+        // Wait for button press when X-axis is disabled (manual return to start)
+        opSubIndex = 5; // New waiting state
+      } else {
+        main->speedMax = main->speedManualMove;
+        // Overstep by 1 so that "main" backlash is taken out before "opSubIndex == 2".
+        long mainPos = mainStartStop + (opDuprSign > 0 ? -1 : 1);
+        stepToFinal(main, mainPos);
+        if (main->pos == mainPos) {
+          stepToFinal(main, mainStartStop);
+          opSubIndex = 0;
+          opIndex++;
+        }
+      }
+    }
+    // Waiting for manual button press to continue to next pass
+    if (opSubIndex == 5) {
+      // Check if Enter key (B_ON) was pressed to continue to next pass
+      if (buttonOnPressed) {
+        buttonOnPressed = false; // Reset flag
+        main->speedMax = main->speedManualMove;
+        // Overstep by 1 so that "main" backlash is taken out before "opSubIndex == 2".
+        long mainPos = mainStartStop + (opDuprSign > 0 ? -1 : 1);
+        stepToFinal(main, mainPos);
+        if (main->pos == mainPos) {
+          stepToFinal(main, mainStartStop);
+          opSubIndex = 0;
+          opIndex++;
+        }
       }
     }
   } else {
@@ -3742,7 +3777,7 @@ void setup() {
   }
 
   initAxis(&z, NAME_Z, true, false, MOTOR_STEPS_Z, SCREW_Z_DU, SPEED_START_Z, SPEED_MANUAL_MOVE_Z, ACCELERATION_Z, INVERT_Z, INVERT_Z_ENABLE, NEEDS_REST_Z, MAX_TRAVEL_MM_Z, BACKLASH_DU_Z, Z_ENA, Z_DIR, Z_STEP, Z_PULSE_A, Z_PULSE_B, PCNT_UNIT_1);
-  initAxis(&x, NAME_X, true, false, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, INVERT_X_ENABLE, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP, X_PULSE_A, X_PULSE_B, PCNT_UNIT_2);
+  initAxis(&x, NAME_X, ACTIVE_X, false, MOTOR_STEPS_X, SCREW_X_DU, SPEED_START_X, SPEED_MANUAL_MOVE_X, ACCELERATION_X, INVERT_X, INVERT_X_ENABLE, NEEDS_REST_X, MAX_TRAVEL_MM_X, BACKLASH_DU_X, X_ENA, X_DIR, X_STEP, X_PULSE_A, X_PULSE_B, PCNT_UNIT_2);
   initAxis(&y, NAME_Y, ACTIVE_Y, ROTARY_Y, MOTOR_STEPS_Y, SCREW_Y_DU, SPEED_START_Y, SPEED_MANUAL_MOVE_Y, ACCELERATION_Y, INVERT_Y, INVERT_Y_ENABLE, NEEDS_REST_Y, MAX_TRAVEL_MM_Y, BACKLASH_DU_Y, Y_ENA, Y_DIR, Y_STEP, Y_PULSE_A, Y_PULSE_B, PCNT_UNIT_3);
 
   isOn = false;
@@ -3807,7 +3842,7 @@ void setup() {
   xTaskCreatePinnedToCore(taskAttachInterrupts, "taskAttachInterrupts", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskDisplay, "taskDisplay", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskMoveZ, "taskMoveZ", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
-  xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
+  if (ACTIVE_X) xTaskCreatePinnedToCore(taskMoveX, "taskMoveX", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   if (ACTIVE_Y) xTaskCreatePinnedToCore(taskMoveY, "taskMoveY", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   xTaskCreatePinnedToCore(taskGcode, "taskGcode", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
   if (WIFI_ENABLED) xTaskCreatePinnedToCore(taskWiFi, "taskWiFI", 10000 /* stack size */, NULL, 0 /* priority */, NULL, 0 /* core */);
@@ -3830,19 +3865,19 @@ void loop() {
     modeGearbox();
   } else if (mode == MODE_TURN) {
     modeTurn(&z, &x);
-  } else if (mode == MODE_FACE) {
+  } else if (mode == MODE_FACE && ACTIVE_X) {
     modeTurn(&x, &z);
-  } else if (mode == MODE_CUT) {
+  } else if (mode == MODE_CUT && ACTIVE_X) {
     modeCut();
-  } else if (mode == MODE_CONE) {
+  } else if (mode == MODE_CONE && ACTIVE_X) {
     modeCone();
   } else if (mode == MODE_THREAD) {
     modeTurn(&z, &x);
-  } else if (mode == MODE_ELLIPSE) {
+  } else if (mode == MODE_ELLIPSE && ACTIVE_X) {
     modeEllipse(&z, &x);
   }
   moveAxis(&z);
-  moveAxis(&x);
+  if (ACTIVE_X) moveAxis(&x);
   if (ACTIVE_Y) moveAxis(&y);
   xSemaphoreGive(motionMutex);
 }
