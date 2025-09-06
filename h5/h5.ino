@@ -72,6 +72,8 @@ const float PULSE_PER_REVOLUTION = 600; // PPR of handwheels.
 const float MPG_SCALE_DIVISOR = 16.0; // Sensitivity: lower = more movement per click
 const int MPG_PCNT_FILTER = 10; // Dedicated filter for MPG (handwheel) PCNT units
 const int MPG_WAIT_DIVISOR = 10; // MPG responsiveness: 1=instant (no wait), 3=original, 10=more responsive, 100=smoother
+const float MPG_ACCELERATION_MULTIPLIER_Z = 3.0; // MPG acceleration multiplier for Z-axis (higher = snappier response)
+const float MPG_ACCELERATION_MULTIPLIER_X = 3.0; // MPG acceleration multiplier for X-axis (higher = snappier response)
 
 const int ENCODER_STEPS_INT = ENCODER_PPR * 2; // Number of encoder impulses PCNT counts per revolution of the spindle
 const int ENCODER_FILTER = 1; // Encoder pulses shorter than this will be ignored. Clock cycles, 1 - 1023.
@@ -706,6 +708,7 @@ struct Axis {
   bool invertEnable; // change (true/false) if the Enable pin is inverted
   bool needsRest; // set to false for closed-loop drivers, true for open-loop.
   bool movingManually; // whether stepper is being moved by left/right buttons
+  bool movingWithMPG; // whether current movement is from MPG input
   long estopSteps; // amount of steps to exceed machine limits
   long backlashSteps; // amount of steps in reverse direction to re-engage the carriage
   long gcodeRelativePos; // absolute position in steps that relative GCode refers to
@@ -773,6 +776,7 @@ void initAxis(Axis* a, char name, bool active, bool rotational, float motorSteps
   a->invertEnable = invertEnable;
   a->needsRest = needsRest;
   a->movingManually = false;
+  a->movingWithMPG = false;
   a->estopSteps = maxTravelMm * 10000 / a->screwPitch * a->motorSteps;
   a->backlashSteps = backlashDu * a->motorSteps / a->screwPitch;
   a->gcodeRelativePos = 0;
@@ -1939,6 +1943,7 @@ void taskMoveZ(void *param) {
     bool stepperOn = true;
     stepperEnable(&z, true);
     z.movingManually = true;
+    z.movingWithMPG = (pulseDelta != 0); // Set MPG flag if movement comes from handwheel
     if (isOn && dupr != 0 && mode == MODE_NORMAL) {
       // Move by moveStep in the desired direction but stay in the thread by possibly traveling a little more.
       int diff = ceil(moveStep * 1.0 / abs(dupr * starts)) * ENCODER_STEPS_FLOAT * sign * (dupr > 0 ? 1 : -1);
@@ -2049,6 +2054,7 @@ void taskMoveX(void *param) {
       continue;
     }
     x.movingManually = true;
+    x.movingWithMPG = (pulseDelta != 0); // Set MPG flag if movement comes from handwheel
     x.speedMax = getStepMaxSpeed(&x);
     stepperEnable(&x, true);
 
@@ -3259,6 +3265,8 @@ void taskKeypad(void *param) {
 void moveAxis(Axis* a) {
   // Most of the time a step isn't needed.
   if (a->pendingPos == 0) {
+    // Clear MPG flag when movement stops
+    a->movingWithMPG = false;
     if (a->speed > a->speedStart) {
       a->speed--;
     }
@@ -3290,7 +3298,18 @@ void moveAxis(Axis* a) {
       a->posGlobal += delta;
 
       bool accelerate = a->continuous || a->pendingPos >= a->decelerateSteps || a->pendingPos <= -a->decelerateSteps;
-      a->speed += (accelerate ? 1 : -1) * a->acceleration * delayUs / 1000000.0;
+      
+      // Use higher acceleration for MPG movements to improve responsiveness
+      float currentAcceleration = a->acceleration;
+      if (a->movingWithMPG) {
+        if (a == &z) {
+          currentAcceleration *= MPG_ACCELERATION_MULTIPLIER_Z;
+        } else if (a == &x) {
+          currentAcceleration *= MPG_ACCELERATION_MULTIPLIER_X;
+        }
+      }
+      
+      a->speed += (accelerate ? 1 : -1) * currentAcceleration * delayUs / 1000000.0;
       if (a->speed > a->speedMax) {
         a->speed = a->speedMax;
       } else if (a->speed < a->speedStart) {
