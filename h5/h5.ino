@@ -3,7 +3,7 @@
 /* Change values in this section to suit your hardware. */
 
 // Define your hardware parameters here.
-const int ENCODER_PPR = 1200; // 1200 step spindle optical rotary encoder. Fractional values not supported.
+const int ENCODER_PPR = 600; // 600 step spindle optical rotary encoder. Fractional values not supported.
 const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without movement of the spindle
 
 // Spindle rotary encoder pins. Swap values if the rotation direction is wrong.
@@ -11,28 +11,28 @@ const int ENCODER_BACKLASH = 3; // Numer of impulses encoder can issue without m
 #define ENC_B 14
 
 // Main lead screw (Z) parameters.
-const long SCREW_Z_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
-const long MOTOR_STEPS_Z = 800;
+const long SCREW_Z_DU = 50000; // 5mm lead screw in deci-microns (10^-7 of a meter)
+const long MOTOR_STEPS_Z = 4000;
 const long SPEED_START_Z = MOTOR_STEPS_Z; // Initial speed of a motor, steps / second.
 const long ACCELERATION_Z = 25 * MOTOR_STEPS_Z; // Acceleration of a motor, steps / second ^ 2.
 const long SPEED_MANUAL_MOVE_Z = 8 * MOTOR_STEPS_Z; // Maximum speed of a motor during manual move, steps / second.
-const bool INVERT_Z = false; // change (true/false) if the carriage moves e.g. "left" when you press "right".
-const bool INVERT_Z_ENABLE = false; // change (true/false) if the Z axis enable pin is inverted
-const bool INVERT_Z_STEP = false; // Step pin inversion for level shifting
+const bool INVERT_Z = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
+const bool INVERT_Z_ENABLE = true; // change (true/false) if the Z axis enable pin is inverted
+const bool INVERT_Z_STEP = true; // Step pin inversion for level shifting
 const bool NEEDS_REST_Z = false; // Set to false for closed-loop drivers, true for open-loop.
 const long MAX_TRAVEL_MM_Z = 300; // Lathe bed doesn't allow to travel more than this in one go, 30cm / ~1 foot
 const long BACKLASH_DU_Z = 0; // 0mm backlash in deci-microns (10^-7 of a meter)
 const char NAME_Z = 'Z'; // Text shown on screen before axis position value, GCode axis name
 
 // Cross-slide lead screw (X) parameters.
-const long SCREW_X_DU = 40000; // 4mm SFU1204 ball screw in deci-microns (10^-7 of a meter)
-const long MOTOR_STEPS_X = 800;
+const long SCREW_X_DU = 40000; // 4mm lead screw in deci-microns (10^-7 of a meter)
+const long MOTOR_STEPS_X = 4000;
 const long SPEED_START_X = MOTOR_STEPS_X; // Initial speed of a motor, steps / second.
 const long ACCELERATION_X = 25 * MOTOR_STEPS_X; // Acceleration of a motor, steps / second ^ 2.
 const long SPEED_MANUAL_MOVE_X = 8 * MOTOR_STEPS_X; // Maximum speed of a motor during manual move, steps / second.
 const bool INVERT_X = true; // change (true/false) if the carriage moves e.g. "left" when you press "right".
-const bool INVERT_X_ENABLE = false; // change (true/false) if the X axis enable pin is inverted
-const bool INVERT_X_STEP = false; // Step pin inversion for level shifting
+const bool INVERT_X_ENABLE = true; // change (true/false) if the X axis enable pin is inverted
+const bool INVERT_X_STEP = true; // Step pin inversion for level shifting
 const bool NEEDS_REST_X = false; // Set to false for all kinds of drivers or X will be unlocked when not moving.
 const long MAX_TRAVEL_MM_X = 100; // Cross slide doesn't allow to travel more than this in one go, 10cm
 const long BACKLASH_DU_X = 0; // 0.15mm backlash in deci-microns (10^-7 of a meter)
@@ -44,8 +44,8 @@ const long DELAY_BETWEEN_STEPS_MS = 80; // Time in milliseconds to wait between 
 
 // Connect to WiFi and expose web UI to control and receive GCode.
 const bool WIFI_ENABLED = true;
-const char* SSID = "your-wifi-name";
-const char* PASSWORD = "your-password";
+const char* SSID = "Holzweg_131";
+const char* PASSWORD = "ZimmermannXXX";
 const long INCOMING_BUFFER_SIZE = 100000;
 const long OUTGOING_BUFFER_SIZE = 100000;
 
@@ -128,55 +128,55 @@ const int GCODE_MIN_RPM = 30; // pause GCode execution if RPM is below this
 #define KEY_DATA 37
 #define KEY_CLOCK 36
 
-#define B_LEFT 21 // Left arrow - controls Z axis movement to the left
-#define B_RIGHT 22 // Right arrow - controls Z axis movement to the right
-#define B_UP 23 // Up arrow - controls X axis movement forwards
-#define B_DOWN 24 // Down arrow - controls X axis movement backwards
+#define B_LEFT 68 // Left arrow - controls Z axis movement to the left
+#define B_RIGHT 75 // Right arrow - controls Z axis movement to the right
+#define B_UP 85 // Up arrow - controls X axis movement forwards
+#define B_DOWN 72 // Down arrow - controls X axis movement backwards
 #define B_FORWARD 85 // u - Advance Y axis
 #define B_BACK 74 // j - Retreat Y axis
-#define B_MINUS 60 // Numpad minus - recrements the pitch or number of passes
-#define B_PLUS 95 // Numpad plus - increments the pitch or number of passes
-#define B_ON 30 // Enter - starts operation or mode
-#define B_OFF 27 // ESC - stops operation or mode
-#define B_STOPL 65 // a - sets left stop
-#define B_STOPR 68 // d - sets right stop
-#define B_STOPU 87 // w - sets forward stop
-#define B_STOPD 83 // s - sets rear stop
+#define B_MINUS 73 // Numpad minus - recrements the pitch or number of passes
+#define B_PLUS 87 // Numpad plus - increments the pitch or number of passes
+#define B_ON 50 // Enter - starts operation or mode
+#define B_OFF 145 // ESC - stops operation or mode
+#define B_STOPL 83 // a - sets left stop
+#define B_STOPR 91 // d - sets right stop
+#define B_STOPU 78 // w - sets forward stop
+#define B_STOPD 89 // s - sets rear stop
 #define B_STOPF 73 // i - Y forward stop
 #define B_STOPB 75 // k - Y backward stop
 #define B_MULTISTART 84 // t - multi-start thread button
-#define B_DISPL 12 // Win - changes info displayed in the bottom line (angle, rpm, ...)
-#define B_STEP 64 // Tilda - changes distance moved when movement buttons are used
-#define B_MEASURE 77 // m - controls metric / imperial / tpi
-#define B_REVERSE 82 // r - changes pitch sign (left / right thread)
-#define B_DIAMETER 79 // o - sets X0 so that centerline is at the middle of a given diameter value
-#define B_0 48 // 0 top row - for number entry
-#define B_1 49 // 1 top row
-#define B_2 50 // ...
-#define B_3 51
-#define B_4 52
-#define B_5 53
-#define B_6 54
-#define B_7 55
-#define B_8 56
-#define B_9 57
-#define B_BACKSPACE 28 // removes the last entered number
-#define B_MODE_GEARS 97 // F1 - sets the mode to gearbox
-#define B_MODE_TURN 98 // F2 - ...
-#define B_MODE_FACE 99 // F3
-#define B_MODE_CONE 100 // F4
-#define B_MODE_CUT 101 // F5
-#define B_MODE_THREAD 102 // F6
-#define B_MODE_ASYNC 103 // F7
-#define B_MODE_ELLIPSE 104 // F8
-#define B_MODE_GCODE 105 // F9
-#define B_MODE_Y 106 // F10
+#define B_DISPL 102 // Win - changes info displayed in the bottom line (angle, rpm, ...)
+#define B_STEP 94 // Tilda - changes distance moved when movement buttons are used
+#define B_MEASURE 66 // m - controls metric / imperial / tpi
+#define B_REVERSE 148 // r - changes pitch sign (left / right thread)
+#define B_DIAMETER 22 // o - sets X0 so that centerline is at the middle of a given diameter value
+#define B_0 84 // 0 top row - for number entry
+#define B_1 71 // 1 top row
+#define B_2 26 // ...
+#define B_3 27
+#define B_4 70
+#define B_5 20
+#define B_6 65
+#define B_7 82
+#define B_8 19
+#define B_9 81
+#define B_BACKSPACE 29 // removes the last entered number
+#define B_MODE_GEARS 31 // F1 - sets the mode to gearbox
+#define B_MODE_TURN 24 // F2 - ...
+#define B_MODE_FACE 147 // F3
+#define B_MODE_CONE 17 // F4
+#define B_MODE_CUT 92 // F5
+#define B_MODE_THREAD 18 // F6
+#define B_MODE_ASYNC 101 // F7
+#define B_MODE_ELLIPSE 10 // F8
+#define B_MODE_GCODE 28 // F9
+#define B_MODE_Y 88 // F10
 #define B_MODE 107 // F11 - to cycle through modes
-#define B_X 88 // x - zeroes X axis
-#define B_Z 90 // z - zeroes Z axis
+#define B_X 139 // x - zeroes X axis
+#define B_Z 99 // z - zeroes Z axis
 #define B_Y 72 // h - zeroes Y axis
-#define B_X_ENA 67 // c - enables / disables X axis
-#define B_Z_ENA 81 // q - enables / disables Z axis
+#define B_X_ENA 93 // c - enables / disables X axis
+#define B_Z_ENA 74 // q - enables / disables Z axis
 #define B_Y_ENA 89 // y - enables / disables Y axis
 
 #define PREF_VERSION "v"
@@ -3811,7 +3811,7 @@ void setup() {
   savedShowAngle = showAngle = pref.getBool(PREF_SHOW_ANGLE);
   savedShowTacho = showTacho = pref.getBool(PREF_SHOW_TACHO);
   savedMoveStep = moveStep = pref.getLong(PREF_MOVE_STEP, MOVE_STEP_1);
-  setModeFromLoop(savedMode = pref.getInt(PREF_MODE));
+  setModeFromLoop(savedMode = pref.getInt(PREF_MODE, MODE_NORMAL));
   savedMeasure = measure = pref.getInt(PREF_MEASURE);
   savedConeRatio = coneRatio = pref.getFloat(PREF_CONE_RATIO, coneRatio);
   savedTurnPasses = turnPasses = pref.getInt(PREF_TURN_PASSES, turnPasses);
